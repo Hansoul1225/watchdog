@@ -87,12 +87,12 @@ int main(int argc, char *argv[])
 {
     struct sockaddr_in servaddr;
     char buf[MAXLINE] = {'0'};
-    char request[MAXLINE] = {'0'};
-    int sockfd, i;
+    int sockfd;
     CPU_OCCUPY cpu_stat1;
     CPU_OCCUPY cpu_stat2;
     MEM_OCCUPY mem_stat;
-    int cpu, mem, flag, err;
+    int cpu, mem;
+    int res = 0;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero(&servaddr, sizeof(servaddr));
@@ -100,7 +100,11 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
     printf("connecting %s\n", argv[1]);
     servaddr.sin_port = htons(SERV_PORT);
-    connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    res = connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    if(res != 0)
+    {
+        perror("connect fail\n");
+    }
     //flag = fcntl(sockfd, F_GETFL);
     //flag |= O_NONBLOCK;
     //fcntl(sockfd, F_SETFL, flag);

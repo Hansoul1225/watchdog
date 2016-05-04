@@ -61,6 +61,8 @@ void tick(time_t ntime)
             else
                 iter++;
         }
+        else
+            iter++;
     }
 }
 
@@ -71,12 +73,14 @@ void setnonblocking(int sock)
     if(opts<0)  
     {  
         cout<<"fcntl(sock,GETFL)";  
+        perror("GETFL failed: ");
         exit(1);  
     }  
     opts = opts|O_NONBLOCK;  
     if(fcntl(sock,F_SETFL,opts)<0)  
     {  
         cout<<"fcntl(sock,SETFL,opts)";  
+        perror("SETFL failed: ");
         exit(1);  
     }  
 }  
@@ -88,28 +92,44 @@ int main(void)
     int listenfd, connfd;
     char buf[MAXLINE];
     char ipaddress[INET_ADDRSTRLEN];
-    int i, efd;
+    int i, efd, len;
+    int res  = 0;
 
     if((file = fopen("error.txt", "a")) == NULL)
     {
         cout<<"cannot open error.txt\n";
+        exit(1);
     }
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(listenfd < 0)
+    {
+        perror("creat listenfd failed:");
+        exit(1);
+    }
     setnonblocking(listenfd);
     memset(&servaddr, 0,sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(SERV_PORT);
 
-    bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    res = bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    if(res != 0)
+    {
+        perror("bind failed: ");
+        exit(1);
+    }
 
-    listen(listenfd, MAX_QUEUE_LENGTH);
+    res = listen(listenfd, MAX_QUEUE_LENGTH);
+    if(res != 0)
+    {
+        perror("listen failed: ");
+        exit(1);
+    }
     cout<<"Watching..."<<endl;
 
     struct epoll_event event;
     struct epoll_event resevent[MAXCLIENT];
-    int res, len;
 
     efd = epoll_create(MAXCLIENT);
     if(efd < 0){
@@ -132,9 +152,9 @@ int main(void)
             if(fd == listenfd)
             {
                 connfd = accept(listenfd, (struct sockaddr*)&cliaddr, &cliaddr_len);
-                setnonblocking(connfd);
                 if(connfd > 0)
                 {
+                    setnonblocking(connfd);
                     event.events = EPOLLIN | EPOLLHUP;//监听读事件 以及挂断close以及ctrl+c
                     event.data.fd = connfd;
                     if(epoll_ctl(efd, EPOLL_CTL_ADD, connfd, &event)<0)
@@ -149,7 +169,6 @@ int main(void)
                     cinfo->tiptok = st;
                     clientInfo[connfd] = cinfo;
                     client++;
-                    cout<<cinfo->IP;
                 }
             }
             else if(resevent[i].events & EPOLLIN)
@@ -165,7 +184,6 @@ int main(void)
                 {
                     cout<<clientInfo[fd]->IP<<"   has closed"<<endl;
 
-                    FILE* file;//write this in error.txt to mark
                     char err[120];
                     memset(err, 0, sizeof(err));
                     time_t now;
@@ -185,7 +203,7 @@ int main(void)
         time_t ntime = time(NULL);
         tick(ntime);
     }
-
+    fclose(file);
     close(efd);
     return 0;
 }
